@@ -5,8 +5,8 @@ import { join } from 'path'
 
 // ==================== CONSTANTES ====================
 
-const MINUTOS_LATIDOS_ALEATORIOS = [10, 30, 45, 50]
-const TEMPO_LIMITE_AUDIO_MS = 3500
+const MINUTOS_LATIDOS_ALEATORIOS = [10, 25, 30, 45, 50]
+const TEMPO_LIMITE_AUDIO_MS = 5000
 const TEMPO_ESPERA_ENTRADA_MS = 2000
 const URL_INVITE = 'https://discord.com/api/oauth2/authorize?client_id=1466193686542028982&permissions=3146752&scope=bot'
 
@@ -62,9 +62,9 @@ function criarPlayerComLimiteDeTempo(
 // ==================== FUNÇÕES DE ÁUDIO ====================
 
 function tocarAudioDeEntrada(guildId: string, connection: VoiceConnection): void {
-  console.log('🔊 Tocando áudio de entrada...')
+  console.log('🔊 Tocando latido de entrada...')
 
-  const audioPath = join(__dirname, '../audios/bem-ti-vi.mp3')
+  const audioPath = join(__dirname, '../audios/latido-unico.mp3')
 
   criarPlayerComLimiteDeTempo(audioPath, connection, TEMPO_LIMITE_AUDIO_MS, () => {
     iniciarCicloDeLatidosAleatorios(guildId, connection)
