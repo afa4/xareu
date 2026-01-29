@@ -2,6 +2,8 @@ import 'dotenv/config'
 import { Client, GatewayIntentBits, Partials, Message, VoiceState, VoiceConnection } from 'discord.js'
 import { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, getVoiceConnection, getVoiceConnections, AudioPlayer } from '@discordjs/voice'
 import { join } from 'path'
+import * as fs from 'fs'
+import { StringUtils } from 'turbocommons-ts'
 
 // ==================== CONSTANTES ====================
 
@@ -86,10 +88,14 @@ function tocarAudioPorNome(
   connection: VoiceConnection,
   limiteTempoMs: number = 5000
 ): void {
-  console.log(`🎵 Tocando áudio: ${audioName}.mp3`)
+  const audiosFolder = join(__dirname, `../audios/`)
+  const audioFiles = fs.readdirSync(audiosFolder)
+    .map((file) => ({file, distance: StringUtils.compareSimilarityPercent(audioName, file)}))
+    .sort((o1, o2) => o1.distance - o2.distance);
 
-  const audioPath = join(__dirname, `../audios/${audioName}.mp3`)
-  criarPlayerComLimiteDeTempo(audioPath, connection, limiteTempoMs)
+  const audioFilePath = join(audiosFolder, audioFiles.pop()?.file!)
+  console.log(`🎵 Tocando áudio: ${audioFilePath}.mp3`)
+  criarPlayerComLimiteDeTempo(audioFilePath!, connection, limiteTempoMs)
 }
 
 // ==================== GERENCIAMENTO DE LATIDOS ====================
@@ -172,18 +178,6 @@ async function processarComandoAudio(message: Message, audioName: string): Promi
     return
   }
 
-  const fs = await import('fs')
-  const audioPath = join(__dirname, `../audios/${audioName}.mp3`)
-
-  if (!fs.existsSync(audioPath)) {
-    console.log(`⏭️  Áudio "${audioName}.mp3" não encontrado`)
-    await message.reply(
-      `❌ Áudio "${audioName}.mp3" não encontrado!\n\n💡 Digite **help** para ver os áudios disponíveis.`
-    )
-    return
-  }
-
-  console.log(`🎵 Tocando áudio via DM: ${audioName}.mp3 no servidor ${guildName}`)
   await message.reply(`🔊 Tocando "${audioName}.mp3"`)
 
   tocarAudioPorNome(audioName, connection, 5000)
