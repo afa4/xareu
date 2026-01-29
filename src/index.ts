@@ -1,11 +1,11 @@
 import 'dotenv/config'
-import { Client, GatewayIntentBits } from 'discord.js'
-import { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, getVoiceConnection } from '@discordjs/voice'
+import { Client, GatewayIntentBits, Partials } from 'discord.js'
+import { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, getVoiceConnection, getVoiceConnections } from '@discordjs/voice'
 import { join } from 'path'
 // https://discord.com/api/oauth2/authorize?client_id=1466193686542028982&permissions=3146752&scope=bot
 
 // Array de minutos para intervalos aleatórios
-const MINUTOS_ALEATORIOS = [1, 2, 3, 4]
+const MINUTOS_ALEATORIOS = [10, 30, 45, 50]
 
 // Map para armazenar os timers ativos por guild
 const timersAtivos = new Map<string, NodeJS.Timeout>()
@@ -60,7 +60,12 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.DirectMessages,
     GatewayIntentBits.MessageContent,
+  ],
+  partials: [
+    Partials.Channel,
+    Partials.Message,
   ],
 })
 
@@ -82,51 +87,113 @@ client.on('warn', (info) => {
 })
 
 client.on('messageCreate', async (message) => {
+  console.log(`🔔 Mensagem recebida! Guild: ${message.guild?.name || 'DM'} | Autor: ${message.author.tag} | Bot: ${message.author.bot} | Conteúdo: "${message.content}"`)
+
   // Ignora mensagens de bots
-  if (message.author.bot) return
-
-  // Ignora mensagens vazias
-  if (!message.content.trim()) return
-
-  // Verifica se o bot está conectado em um canal de voz neste servidor
-  const connection = getVoiceConnection(message.guildId!)
-  if (!connection) return
-
-  const audioName = message.content.trim().toLowerCase()
-  const audioPath = join(__dirname, `../audios/${audioName}.mp3`)
-
-  // Verifica se o arquivo existe
-  const fs = await import('fs')
-  if (!fs.existsSync(audioPath)) {
-    console.log(`⏭️  Áudio "${audioName}.mp3" não encontrado`)
+  if (message.author.bot) {
+    console.log('   ⏭️  Ignorando: mensagem de bot')
     return
   }
 
-  console.log(`🎵 Tocando áudio solicitado: ${audioName}.mp3`)
+  // Ignora mensagens vazias
+  if (!message.content.trim()) {
+    console.log('   ⏭️  Ignorando: mensagem vazia')
+    return
+  }
 
-  const player = createAudioPlayer()
-  const resource = createAudioResource(audioPath)
+  // Verifica se é uma DM (mensagem direta)
+  if (!message.guild) {
+    console.log(`📨 DM recebida de ${message.author.tag}: "${message.content}"`)
 
-  player.play(resource)
-  connection.subscribe(player)
+    const audioName = message.content.trim().toLowerCase()
 
-  // Interrompe o áudio após 3,5 segundos
-  const stopTimer = setTimeout(() => {
-    if (player.state.status !== AudioPlayerStatus.Idle) {
-      console.log(`⏱️  Áudio "${audioName}.mp3" interrompido (limite de 3,5s)`)
-      player.stop()
+    // Comando help - lista todos os áudios disponíveis
+    if (audioName === 'help') {
+      console.log('📋 Comando help recebido - listando áudios disponíveis')
+
+      const fs = await import('fs')
+      const audiosDir = join(__dirname, '../audios')
+
+      try {
+        const files = fs.readdirSync(audiosDir)
+        const mp3Files = files.filter(file => file.endsWith('.mp3'))
+
+        if (mp3Files.length === 0) {
+          await message.reply('📂 Nenhum áudio encontrado na pasta!')
+          return
+        }
+
+        const audioList = mp3Files.map(file => file.replace('.mp3', '')).join('\n• ')
+        await message.reply(`🎵 **Áudios disponíveis:**\n• ${audioList}\n\n💡 Digite o nome do áudio para tocar!`)
+        return
+      } catch (error) {
+        console.error('❌ Erro ao listar áudios:', error)
+        await message.reply('❌ Erro ao listar áudios disponíveis!')
+        return
+      }
     }
-  }, 5000)
 
-  player.on(AudioPlayerStatus.Idle, () => {
-    clearTimeout(stopTimer)
-    console.log(`✅ Áudio "${audioName}.mp3" finalizado`)
-  })
+    // Procura em qual servidor o bot está conectado em um canal de voz
+    const connections = getVoiceConnections()
+    let connection = null
+    let guildName = ''
 
-  player.on('error', (error) => {
-    clearTimeout(stopTimer)
-    console.error(`❌ Erro ao tocar "${audioName}.mp3":`, error)
-  })
+    for (const [guildId, voiceConnection] of connections) {
+      connection = voiceConnection
+      const guild = client.guilds.cache.get(guildId)
+      guildName = guild?.name || 'Desconhecido'
+      console.log(`🔍 Encontrada conexão no servidor: ${guildName}`)
+      break // Usa a primeira conexão ativa
+    }
+
+    if (!connection) {
+      console.log('⏭️  Bot não está em nenhum canal de voz')
+      await message.reply('❌ Não estou conectado em nenhum canal de voz no momento!')
+      return
+    }
+
+    const audioPath = join(__dirname, `../audios/${audioName}.mp3`)
+
+    // Verifica se o arquivo existe
+    const fs = await import('fs')
+    if (!fs.existsSync(audioPath)) {
+      console.log(`⏭️  Áudio "${audioName}.mp3" não encontrado`)
+      await message.reply(`❌ Áudio "${audioName}.mp3" não encontrado!\n\n💡 Digite **help** para ver os áudios disponíveis.`)
+      return
+    }
+
+    console.log(`🎵 Tocando áudio via DM: ${audioName}.mp3 no servidor ${guildName}`)
+    await message.reply(`🔊 Tocando "${audioName}.mp3"`)
+
+    const player = createAudioPlayer()
+    const resource = createAudioResource(audioPath)
+
+    player.play(resource)
+    connection.subscribe(player)
+
+    // Interrompe o áudio após 3,5 segundos
+    const stopTimer = setTimeout(() => {
+      if (player.state.status !== AudioPlayerStatus.Idle) {
+        console.log(`⏱️  Áudio "${audioName}.mp3" interrompido (limite de 3,5s)`)
+        player.stop()
+      }
+    }, 5000)
+
+    player.on(AudioPlayerStatus.Idle, () => {
+      clearTimeout(stopTimer)
+      console.log(`✅ Áudio "${audioName}.mp3" finalizado`)
+    })
+
+    player.on('error', (error) => {
+      clearTimeout(stopTimer)
+      console.error(`❌ Erro ao tocar "${audioName}.mp3":`, error)
+    })
+
+    return
+  }
+
+  // Mensagens de servidor são ignoradas agora
+  console.log(`⏭️  Mensagem de servidor ignorada: "${message.content}"`)
 })
 
 client.on('voiceStateUpdate', (oldState, newState) => {
