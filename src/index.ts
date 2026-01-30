@@ -98,8 +98,6 @@ function tocarAudioPorNome(
     })
     .sort((o1, o2) => o1.distance - o2.distance);
 
-  console.log(audioFiles)
-
   const audioFilePath = join(audiosFolder, audioFiles.pop()?.file!)
   console.log(`🎵 Tocando áudio: ${audioFilePath}.mp3`)
   criarPlayerComLimiteDeTempo(audioFilePath!, connection, limiteTempoMs)
