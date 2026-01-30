@@ -4,6 +4,7 @@ import { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerSt
 import { join } from 'path'
 import * as fs from 'fs'
 import { StringUtils } from 'turbocommons-ts'
+import stringSimilarity from 'string-similarity-js'
 
 // ==================== CONSTANTES ====================
 
@@ -90,7 +91,11 @@ function tocarAudioPorNome(
 ): void {
   const audiosFolder = join(__dirname, `../audios/`)
   const audioFiles = fs.readdirSync(audiosFolder)
-    .map((file) => ({file, distance: StringUtils.compareSimilarityPercent(audioName, file)}))
+    .map((file) => {
+      const bootstrap = file.includes(audioName) ? 100 : 0
+      const metric = bootstrap + stringSimilarity(audioName, file.replace(/\D/, ''))
+        return { file, distance:  metric}
+    })
     .sort((o1, o2) => o1.distance - o2.distance);
 
   const audioFilePath = join(audiosFolder, audioFiles.pop()?.file!)
