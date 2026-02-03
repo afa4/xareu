@@ -56,21 +56,21 @@ export class VoiceStateHandler {
         return
       }
 
-      // Se usuário mudou de canal (e não é entrada nova), verifica se o bot ficou sozinho no canal antigo
-      if (oldState.channel) {
-        setTimeout(() => {
-          if (this.voiceService.isBotAloneInChannel(guildId)) {
-            this.voiceService.handleBotAlone(guildId)
-            return
-          }
-        }, 1000) // Pequeno delay para garantir que o estado foi atualizado
-      }
-
-      // Se o bot está seguindo usuários, continua seguindo
+      // Se o bot está seguindo usuários, continua seguindo (não verifica se ficou sozinho)
       if (this.voiceService.isFollowingUsers(guildId)) {
         console.log('   🐕 Xeréu está seguindo o usuário...')
         this.voiceService.handleChannelEntry(newState.channel, guildId)
         return
+      }
+
+      // Se usuário mudou de canal E o bot não está seguindo, verifica se o bot ficou sozinho
+      if (oldState.channel && !this.voiceService.isFollowingUsers(guildId)) {
+        setTimeout(() => {
+          // Verifica novamente se ainda não está seguindo (pode ter mudado)
+          if (!this.voiceService.isFollowingUsers(guildId) && this.voiceService.isBotAloneInChannel(guildId)) {
+            this.voiceService.handleBotAlone(guildId)
+          }
+        }, 2000) // Delay maior para garantir que o estado foi atualizado
       }
 
       // Se o bot está na casinha, só sai se alguém entrar na própria casinha

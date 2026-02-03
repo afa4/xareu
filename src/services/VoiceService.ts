@@ -82,14 +82,21 @@ export class VoiceService {
   }
 
   /**
-   * Toca o áudio de entrada e inicia o ciclo de latidos
+   * Toca o áudio de entrada e inicia o ciclo de latidos (se ainda não estiver ativo)
    */
   private playEntryAudio(guildId: string, connection: VoiceConnection): void {
     this.audioService.playEntryAudio(
       connection,
       BOT_CONFIG.AUDIO_TIME_LIMIT_MS,
       () => {
-        this.startRandomBarkCycle(guildId, connection)
+        // Só inicia o ciclo de latidos se não houver um timer ativo
+        const hasActiveTimer = this.barkTimersByGuild.has(guildId)
+        if (!hasActiveTimer) {
+          console.log('⏰ Iniciando ciclo de latidos aleatórios...')
+          this.startRandomBarkCycle(guildId, connection)
+        } else {
+          console.log('⏰ Ciclo de latidos já está ativo, mantendo...')
+        }
       }
     )
   }
@@ -102,7 +109,11 @@ export class VoiceService {
       connection,
       BOT_CONFIG.AUDIO_TIME_LIMIT_MS,
       () => {
-        this.scheduleNextBark(guildId, connection)
+        // Usa a conexão atual para agendar o próximo
+        const currentConnection = getVoiceConnection(guildId)
+        if (currentConnection) {
+          this.scheduleNextBark(guildId, currentConnection)
+        }
       }
     )
   }
@@ -117,7 +128,14 @@ export class VoiceService {
     console.log(`⏰ Próximo latido em ${minutes} minuto(s)`)
 
     const timer = setTimeout(() => {
-      this.playRandomBark(guildId, connection)
+      // Pega a conexão atual (pode ter mudado de canal)
+      const currentConnection = getVoiceConnection(guildId)
+      if (currentConnection) {
+        this.playRandomBark(guildId, currentConnection)
+      } else {
+        console.log('⏹️  Bot não está mais conectado, cancelando latidos')
+        this.barkTimersByGuild.delete(guildId)
+      }
     }, milliseconds)
 
     this.barkTimersByGuild.set(guildId, timer)
@@ -190,8 +208,7 @@ export class VoiceService {
 
     console.log(`🏠 Indo para a Casinha do Xeréu...`)
 
-    // Cancela latidos agendados
-    this.cancelScheduledBarks(guildId)
+    // NÃO cancela latidos agendados - eles continuam rodando independente do canal
 
     // Entra na casinha
     this.joinVoiceChannel(casinhaChannel)
